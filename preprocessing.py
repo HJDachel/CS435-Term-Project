@@ -25,4 +25,8 @@ joined_df = questions_df.join(tags_grouped_by_id, 'Id')
 #Convert Tag column from array to string
 joined_flattened_df = joined_df.withColumn("Tag", array_join("Tag", ","))
 
-joined_flattened_df.write.csv("hdfs://columbia:30141/output/test.csv")
+joined_df_filtered = joined_flattened_df.filter(joined_df.Score > 0)
+
+cleaned_df = joined_df_filtered.drop('CreationDate', 'OwnerUserId', 'Id','ClosedDate')
+
+cleaned_df.write.csv("hdfs://columbia:30141/output/test")
