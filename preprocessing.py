@@ -1,4 +1,4 @@
-from pyspark.sql.functions import collect_list
+from pyspark.sql.functions import collect_list, array_join
 from pyspark import SparkConf
 from pyspark.sql import SparkSession
 
@@ -22,4 +22,7 @@ tags_grouped_by_id = tags_df.groupby('Id').agg(collect_list('Tag').alias("Tag"))
 
 joined_df = questions_df.join(tags_grouped_by_id, 'Id')
 
-joined_df.write.csv("hdfs://columbia:30141/output/test.csv")
+#Convert Tag column from array to string
+joined_flattened_df = joined_df.withColumn("Tag", array_join("Tag", ","))
+
+joined_flattened_df.write.csv("hdfs://columbia:30141/output/test.csv")
