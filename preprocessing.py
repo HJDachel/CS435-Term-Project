@@ -20,6 +20,6 @@ tags_df = spark.read.option("header",True).csv("hdfs://columbia:30141/input/Tags
 
 tags_grouped_by_id = tags_df.groupby('Id').agg(collect_list('Tag').alias("Tag"))
 
-joined_df = questions_df.join(tags_grouped_by_id, questions_df.Id == tags_grouped_by_id.Id)
+joined_df = questions_df.join(tags_grouped_by_id, 'Id')
 
-joined_df.take(10)
+joined_df.write.csv("hdfs://columbia:30141/output/test.csv")
