@@ -114,10 +114,10 @@ cleaned_df.dropna(subset=['Tag'], inplace=True)
 #Then the body needs cleaned up
 #This includes removing the HTML, removing punctuation, lemmatizing words and removing stop words
 cleaned_df['Body'] = cleaned_df['Body'].apply(lambda x: BeautifulSoup(x).get_text())
-cleaned_df['Body'] = cleaned_df['Body'].apply(lambda x: clean_text(x)))
-cleaned_df['Body'] = cleaned_df['Body'].apply(lambda x: clean_punct(x)))
-cleaned_df['Body'] = cleaned_df['Body'].apply(lambda x: lemmitizeWords(x)))
-cleaned_df['Body'] = cleaned_df['Body'].apply(lambda x: stopWordsRemove(x)))
+cleaned_df['Body'] = cleaned_df['Body'].apply(lambda x: clean_text(x))
+cleaned_df['Body'] = cleaned_df['Body'].apply(lambda x: clean_punct(x))
+cleaned_df['Body'] = cleaned_df['Body'].apply(lambda x: lemmitizeWords(x))
+cleaned_df['Body'] = cleaned_df['Body'].apply(lambda x: stopWordsRemove(x))
 #Then the titles need cleaned up
 cleaned_df['Title'] = cleaned_df['Body'].apply(lambda x: BeautifulSoup(x).get_text())
 cleaned_df['Title'] = cleaned_df['Body'].apply(lambda x: clean_text(x))
