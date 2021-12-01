@@ -5,6 +5,8 @@ import re
 import nltk
 import bs4 as bs
 
+nltk.download('punkt')
+
 def lemmitizeWords(text):
     token = TokTokTokenizer()
     words=token.tokenize(text)
