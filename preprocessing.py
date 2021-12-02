@@ -103,6 +103,7 @@ cleaned_df = joined_df_filtered.drop('CreationDate', 'OwnerUserId', 'Id','Closed
 # all_tags = tags_df.rdd.map(lambda x: x[1]).collect()
 all_tags = cleaned_df.rdd.map(lambda x: x[3]).collect()
 #Create the feature vector
+all_tags = [item for sublist in all_tags for item in sublist]
 all_tags_tokenized = [nltk.tokenize.word_tokenize(i) for i in all_tags]
 tagDist = nltk.FreqDist(all_tags_tokenized)
 tagDist2 = nltk.FreqDist(tagDist)
