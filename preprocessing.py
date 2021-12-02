@@ -13,6 +13,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.metrics import jaccard_score
+import numpy as np
 # from nltk.corpus import stopwords
 
 nltk.download('punkt')
@@ -207,10 +208,20 @@ clf = OneVsRestClassifier(mn)
 clf.fit(X_train, y_train)
 y_pred = clf.predict(X_test)
 
-jaccard_score(y_test, y_pred, average=None)
+# jaccard_score(y_test, y_pred, average=None)
 
-jacc_list = [jaccard_score]
+def avg_jaccard(y_true,y_pred):
+    '''
+    see https://en.wikipedia.org/wiki/Multi-label_classification#Statistics_and_evaluation_metrics
+    '''
+    jaccard = np.minimum(y_true,y_pred).sum(axis=1) / np.maximum(y_true,y_pred).sum(axis=1)
+    
+    return jaccard.mean()*100
 
+
+jacc_list = ["Jacard score: {}".format(avg_jaccard(y_test, y_pred))]
+   
 jacc_rdd = sc.parallelize(jacc_list)
+
 
 jacc_rdd.coalesce(1).saveAsTextFile("hdfs://columbia:30141/output/test/")
