@@ -13,6 +13,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.metrics import jaccard_score
+from sklearn.metrics import accuracy_score
+from sklearn.svm import LinearSVC
 import numpy as np
 # from nltk.corpus import stopwords
 
@@ -105,7 +107,7 @@ all_tags = [item for sublist in all_tags for item in sublist]
 # tagDist = nltk.FreqDist(all_tags_tokenized)
 tagDist = nltk.FreqDist(all_tags)
 tagDist2 = nltk.FreqDist(tagDist)
-frequencies = tagDist2.most_common(500)
+frequencies = tagDist2.most_common(100)
 tag_features = [tag[0] for tag in frequencies]
 
 def most_common(tags):
@@ -202,8 +204,8 @@ X_tfidf = hstack([X1_tfidf,X2_tfidf])
 
 X_train, X_test, y_train, y_test = train_test_split(X_tfidf, y_bin, test_size = 0.2, random_state = 42)
 
-mn = MultinomialNB()
-clf = OneVsRestClassifier(mn)
+svc = LinearSVC()
+clf = OneVsRestClassifier(svc)
 
 clf.fit(X_train, y_train)
 y_pred = clf.predict(X_test)
@@ -225,3 +227,6 @@ jacc_rdd = sc.parallelize(jacc_list)
 
 
 jacc_rdd.coalesce(1).saveAsTextFile("hdfs://columbia:30141/output/test/")
+#jacc_rdd.coalesce(1).saveAsTextFile("hdfs://saint-paul:30261/output/")
+
+
