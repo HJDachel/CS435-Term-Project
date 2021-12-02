@@ -6,6 +6,13 @@ import re
 import nltk
 from bs4 import BeautifulSoup
 from nltk.stem import WordNetLemmatizer
+from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from scipy.sparse import hstack
+from sklearn.model_selection import train_test_split
+from sklearn.multiclass import OneVsRestClassifier
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.metrics import jaccard_score
 # from nltk.corpus import stopwords
 
 nltk.download('punkt')
@@ -133,7 +140,7 @@ cleaned_df = cleaned_df.withColumn("Tag", most_common_udf(cleaned_df.Tag))
 length_zero_udf = udf(lambda x: x if len(x)>0 else None, ArrayType(StringType()))
 # cleaned_df['Tag'] = cleaned_df['Tag'].apply(lambda x: x if len(x)>0 else None)
 cleaned_df = cleaned_df.withColumn("Tag", length_zero_udf(cleaned_df.Tag))
-cleaned_df = cleaned_df.dropna(subset=['Tag', 'Body', 'Title'])
+cleaned_df = cleaned_df.dropna()
 
 #Then the body needs cleaned up
 #This includes removing the HTML, removing punctuation, lemmatizing words and removing stop words
@@ -155,6 +162,55 @@ cleaned_df = cleaned_df.withColumn("Title", lemmatizeWords_udf(cleaned_df.Title)
 cleaned_df = cleaned_df.withColumn("Title", stopWordsRemove_udf(cleaned_df.Title))
 
 #Then we need to apply our models
-cleaned_df = cleaned_df.withColumn("Tag", array_join("Tag", ","))
+# cleaned_df = cleaned_df.withColumn("Tag", array_join("Tag", ","))
 
-cleaned_df.write.csv("hdfs://columbia:30141/output/test")
+# cleaned_df.write.csv("hdfs://columbia:30141/output/test")
+
+cleaned_df_pd = cleaned_df.toPandas()
+
+x1 = cleaned_df_pd["Body"]
+x2 = cleaned_df_pd["Title"]
+y1 = cleaned_df_pd["Tag"]
+
+mlb = MultiLabelBinarizer()
+
+y_bin = mlb.fit_transform(y1)
+
+vectorizer_X1 = TfidfVectorizer(analyzer = 'word',
+    min_df=0.0,
+    max_df = 1.0,
+    strip_accents = None,
+    encoding = 'utf-8', 
+    preprocessor=None,
+    token_pattern=r"(?u)\S\S+",
+    max_features=1000)
+
+vectorizer_X2 = TfidfVectorizer(analyzer = 'word',
+    min_df=0.0,
+    max_df = 1.0,
+    strip_accents = None,
+    encoding = 'utf-8', 
+    preprocessor=None,
+    token_pattern=r"(?u)\S\S+",
+    max_features=1000)
+
+
+X1_tfidf = vectorizer_X1.fit_transform(x1)
+X2_tfidf = vectorizer_X2.fit_transform(x2)
+X_tfidf = hstack([X1_tfidf,X2_tfidf])
+
+X_train, X_test, y_train, y_test = train_test_split(X_tfidf, y_bin, test_size = 0.2, random_state = 42)
+
+mn = MultinomialNB()
+clf = OneVsRestClassifier(mn)
+
+clf.fit(X_train, y_train)
+y_pred = clf.predict(X_test)
+
+jaccard_score(y_test, y_pred, average=None)
+
+jacc_list = [jaccard_score]
+
+jacc_rdd = sc.parallelize(jacc_list)
+
+jacc_rdd.coalesce(1).saveAsTextFile("hdfs://columbia:30141/output/test/")
