@@ -1,15 +1,23 @@
-from pyspark.sql.functions import collect_list, array_join
+from pyspark.sql.functions import collect_list, array_join, udf
+from pyspark.sql.types import ArrayType, StringType
 from pyspark import SparkConf
 from pyspark.sql import SparkSession
 import re
 import nltk
-import bs4 as bs
+from bs4 import BeautifulSoup
+from nltk.stem import WordNetLemmatizer
+# from nltk.corpus import stopwords
 
 nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('wordnet')
+
 
 def lemmitizeWords(text):
-    token = TokTokTokenizer()
-    words=token.tokenize(text)
+    # token = TokTokTokenizer()
+    # words=token.tokenize(text)
+    lemma = WordNetLemmatizer()
+    words = nltk.tokenize.word_tokenize(text)
     listLemma=[]
     for w in words:
         x=lemma.lemmatize(w, pos="v")
@@ -17,38 +25,19 @@ def lemmitizeWords(text):
     return ' '.join(map(str, listLemma))
 
 def stopWordsRemove(text):
-    token = TokTokTokenizer()
+    from nltk.corpus import stopwords
+    words = nltk.tokenize.word_tokenize(text)
     stop_words = set(stopwords.words("english"))
-    words=token.tokenize(text)
     filtered = [w for w in words if not w in stop_words]
     return ' '.join(map(str, filtered))
 
-def clean_punct(text):
-    token = TokTokTokenizer()
-    words=token.tokenize(text)
-    punctuation_filtered = []
-    regex = re.compile('[%s]' % re.escape(punct))
-    remove_punctuation = str.maketrans(' ', ' ', punct)
-    for w in words:
-        if w in tags_features:
-            punctuation_filtered.append(w)
-        else:
-            punctuation_filtered.append(regex.sub('', w))
-  
-    filtered_list = strip_list_noempty(punctuation_filtered)
-        
-    return ' '.join(map(str, filtered_list))
+
 
 def strip_list_noempty(mylist):
     newlist = (item.strip() if hasattr(item, 'strip') else item for item in mylist)
     return [item for item in newlist if item != '']
 
-def most_common(tags, tags_features):
-    tags_filtered = []
-    for i in range(0, len(tags)):
-        if tags[i] in tags_features:
-            tags_filtered.append(tags[i])
-    return tags_filtered
+
 
 def clean_text(text):
     text = text.lower()
@@ -104,30 +93,68 @@ cleaned_df = joined_df_filtered.drop('CreationDate', 'OwnerUserId', 'Id','Closed
 all_tags = cleaned_df.rdd.map(lambda x: x[3]).collect()
 #Create the feature vector
 all_tags = [item for sublist in all_tags for item in sublist]
-all_tags_tokenized = [nltk.tokenize.word_tokenize(i) for i in all_tags]
-tagDist = nltk.FreqDist(all_tags_tokenized)
+# all_tags_tokenized = [nltk.tokenize.word_tokenize(i) for i in all_tags]
+# tagDist = nltk.FreqDist(all_tags_tokenized)
+tagDist = nltk.FreqDist(all_tags)
 tagDist2 = nltk.FreqDist(tagDist)
 frequencies = tagDist2.most_common(500)
 tag_features = [tag[0] for tag in frequencies]
+
+def most_common(tags):
+    tags_filtered = []
+    for i in range(0, len(tags)):
+        if tags[i] in tag_features:
+            tags_filtered.append(tags[i])
+    return tags_filtered
+
+def clean_punct(text):
+    # token = TokTokTokenizer()
+    # words=token.tokenize(text)
+    punct = '!"#$%&\'()*+,./:;<=>?@[\]^_`{|}~'
+    words = nltk.tokenize.word_tokenize(text)
+    punctuation_filtered = []
+    regex = re.compile('[%s]' % re.escape(punct))
+    remove_punctuation = str.maketrans(' ', ' ', punct)
+    for w in words:
+        if w in tag_features:
+            punctuation_filtered.append(w)
+        else:
+            punctuation_filtered.append(regex.sub('', w))
+  
+    filtered_list = strip_list_noempty(punctuation_filtered)
+        
+    return ' '.join(map(str, filtered_list))
+
 #Remove all questions that don't have one of the tags in the feature
-cleaned_df['Tag'] = cleaned_df['Tag'].apply(lambda x: most_common(x))
-cleaned_df['Tag'] = cleaned_df['Tag'].apply(lambda x: x if len(x)>0 else None)
-cleaned_df.dropna(subset=['Tag'], inplace=True)
+# cleaned_df['Tag'] = cleaned_df.select("tag").apply(lambda x: most_common(x))
+# cleaned_df = cleaned_df.rdd.map(lambda x: most_common(x['Tag']))
+most_common_udf = udf(most_common, ArrayType(StringType()))
+cleaned_df = cleaned_df.withColumn("Tag", most_common_udf(cleaned_df.Tag))
+length_zero_udf = udf(lambda x: x if len(x)>0 else None, ArrayType(StringType()))
+# cleaned_df['Tag'] = cleaned_df['Tag'].apply(lambda x: x if len(x)>0 else None)
+cleaned_df = cleaned_df.withColumn("Tag", length_zero_udf(cleaned_df.Tag))
+cleaned_df = cleaned_df.dropna(subset=['Tag', 'Body', 'Title'])
 
 #Then the body needs cleaned up
 #This includes removing the HTML, removing punctuation, lemmatizing words and removing stop words
-cleaned_df['Body'] = cleaned_df['Body'].apply(lambda x: BeautifulSoup(x).get_text())
-cleaned_df['Body'] = cleaned_df['Body'].apply(lambda x: clean_text(x))
-cleaned_df['Body'] = cleaned_df['Body'].apply(lambda x: clean_punct(x))
-cleaned_df['Body'] = cleaned_df['Body'].apply(lambda x: lemmitizeWords(x))
-cleaned_df['Body'] = cleaned_df['Body'].apply(lambda x: stopWordsRemove(x))
+bsUDF = udf(lambda x: BeautifulSoup(x).get_text())
+cleaned_df = cleaned_df.withColumn("Body", bsUDF(cleaned_df.Body))
+clean_text_udf = udf(lambda x: clean_text(x))
+cleaned_df = cleaned_df.withColumn("Body", clean_text_udf(cleaned_df.Body))
+clean_punct_udf = udf(lambda x: clean_punct(x))
+cleaned_df = cleaned_df.withColumn("Body", clean_punct_udf(cleaned_df.Body))
+lemmatizeWords_udf = udf(lambda x: lemmitizeWords(x))
+cleaned_df = cleaned_df.withColumn("Body", lemmatizeWords_udf(cleaned_df.Body))
+stopWordsRemove_udf = udf(lambda x: stopWordsRemove(x))
+cleaned_df = cleaned_df.withColumn("Body", stopWordsRemove_udf(cleaned_df.Body))
 #Then the titles need cleaned up
-cleaned_df['Title'] = cleaned_df['Body'].apply(lambda x: BeautifulSoup(x).get_text())
-cleaned_df['Title'] = cleaned_df['Body'].apply(lambda x: clean_text(x))
-cleaned_df['Title'] = cleaned_df['Body'].apply(lambda x: clean_punct(x))
-cleaned_df['Title'] = cleaned_df['Body'].apply(lambda x: lemmitizeWords(x))
-cleaned_df['Title'] = cleaned_df['Body'].apply(lambda x: stopWordsRemove(x))
+cleaned_df = cleaned_df.withColumn("Title", bsUDF(cleaned_df.Title))
+cleaned_df = cleaned_df.withColumn("Title", clean_text_udf(cleaned_df.Title))
+cleaned_df = cleaned_df.withColumn("Title", clean_punct_udf(cleaned_df.Title))
+cleaned_df = cleaned_df.withColumn("Title", lemmatizeWords_udf(cleaned_df.Title))
+cleaned_df = cleaned_df.withColumn("Title", stopWordsRemove_udf(cleaned_df.Title))
 
 #Then we need to apply our models
+cleaned_df = cleaned_df.withColumn("Tag", array_join("Tag", ","))
 
 cleaned_df.write.csv("hdfs://columbia:30141/output/test")
