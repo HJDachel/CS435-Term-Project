@@ -226,6 +226,9 @@ jacc_list = ["Jacard score: {}".format(avg_jaccard(y_test, y_pred))]
 jacc_rdd = sc.parallelize(jacc_list)
 
 
-#jacc_rdd.coalesce(1).saveAsTextFile("hdfs://columbia:30141/output/test/")
-jacc_rdd.coalesce(1).saveAsTextFile("hdfs://saint-paul:30261/output/")
+
+jacc_rdd.coalesce(1).saveAsTextFile("hdfs://columbia:30141/output/test/")
+#jacc_rdd.coalesce(1).saveAsTextFile("hdfs://saint-paul:30261/output/")
+
+
 
